@@ -1,105 +1,124 @@
-
 async function generateTerraform() {
 
     const prompt =
-        document.getElementById("prompt").value;
-
-    const result =
-        document.getElementById("result");
+        document.getElementById("prompt").value.trim();
 
     const status =
         document.getElementById("status");
 
+    const filesContainer =
+        document.getElementById("files-container");
 
-    if (!prompt.trim()) {
+    const downloadButton =
+        document.getElementById("download-btn");
+
+
+    if (!prompt) {
 
         alert("Please enter your infrastructure requirement.");
 
         return;
-
     }
 
 
     status.innerHTML =
-        "<div class='loading'>Generating Terraform...</div>";
+        "<div class='loading'>🤖 Generating Terraform project...</div>";
 
-    result.textContent = "";
+    filesContainer.innerHTML = "";
+
+    downloadButton.style.display = "none";
 
 
     const systemPrompt = `
 
-You are an expert AWS Cloud Engineer,
+You are an expert AWS Cloud Architect,
 Terraform Engineer and DevOps Engineer.
 
-Your task is to generate complete,
-production-quality Terraform configuration.
+The user will describe an AWS infrastructure requirement.
 
-The user will describe AWS infrastructure.
+Your job is to generate a COMPLETE Terraform project.
 
-Generate these files:
+IMPORTANT:
 
-========================
+Return ONLY valid JSON.
 
-provider.tf
+Do NOT return markdown.
 
-variables.tf
+Do NOT return triple backticks.
 
-main.tf
+Do NOT write explanations outside JSON.
 
-outputs.tf
+The JSON must have exactly this structure:
 
-terraform.tfvars.example
-
-README.md
-
-========================
-
+{
+  "provider.tf": "complete Terraform code",
+  "variables.tf": "complete Terraform code",
+  "main.tf": "complete Terraform code",
+  "outputs.tf": "complete Terraform code",
+  "terraform.tfvars.example": "complete Terraform variable example",
+  "README.md": "complete README documentation"
+}
 
 Rules:
 
-1. Use Terraform HCL.
+1. Generate valid Terraform HCL.
 
 2. Use the AWS provider.
 
 3. Use variables wherever appropriate.
 
-4. Never hard-code AWS credentials.
+4. Never generate AWS access keys.
 
-5. Never generate AWS access keys.
+5. Never generate secrets.
 
-6. Create all required dependencies.
+6. Never hard-code credentials.
 
-7. Use resource references instead of hard-coded IDs.
+7. Use Terraform resource references.
 
-8. Include useful outputs.
+8. Create all required dependencies.
 
-9. Include comments explaining important resources.
+9. Include useful outputs.
 
-10. Make the Terraform configuration valid.
+10. Include comments for important Terraform resources.
 
-11. Include networking resources when required.
+11. Use sensible AWS defaults.
 
-12. Use sensible CIDR blocks.
+12. If an AMI is required, make it a variable.
 
-13. Use security groups with least-privilege rules.
+13. If an EC2 key pair is required, make it a variable.
 
-14. Clearly separate variables from resources.
+14. If networking is required, create the necessary
+    VPC, subnets, route tables, Internet Gateway,
+    NAT Gateway and security groups.
 
-15. Generate complete code.
+15. Use appropriate CIDR ranges.
 
-16. Do not omit required resources.
+16. Use least-privilege security group rules.
 
-17. Explain how to deploy the generated Terraform.
+17. The project must be deployable with:
 
-18. If a service requires an AMI ID,
-    make it a variable.
+terraform init
 
-19. If a resource requires a key pair,
-    make it a variable.
+terraform validate
 
-20. Do not create fake AWS resource IDs.
+terraform plan
 
-Return the complete Terraform project.
+terraform apply
+
+18. README.md must explain:
+
+- Project architecture
+- Prerequisites
+- terraform init
+- terraform validate
+- terraform plan
+- terraform apply
+- terraform destroy
+
+19. terraform.tfvars.example must contain
+    example values but MUST NOT contain secrets.
+
+20. Every file must contain complete content.
 
 USER REQUIREMENT:
 
@@ -110,40 +129,30 @@ ${prompt}
 
     try {
 
-
         const response = await fetch(
             "/api/generate",
             {
-
                 method: "POST",
 
                 headers: {
-
-                    "Content-Type":
-                        "application/json"
-
+                    "Content-Type": "application/json"
                 },
 
                 body: JSON.stringify({
 
-                    model:
-                        "qwen2.5-coder:3b",
+                    model: "qwen2.5-coder:3b",
 
-                    prompt:
-                        systemPrompt,
+                    prompt: systemPrompt,
 
-                    stream:
-                        false,
+                    stream: false,
+
+                    format: "json",
 
                     options: {
-
-                        temperature:
-                            0.1
-
+                        temperature: 0.1
                     }
 
                 })
-
             }
         );
 
@@ -151,10 +160,9 @@ ${prompt}
         if (!response.ok) {
 
             throw new Error(
-                "Ollama HTTP error: "
-                + response.status
+                "Ollama HTTP error: " +
+                response.status
             );
-
         }
 
 
@@ -162,24 +170,240 @@ ${prompt}
             await response.json();
 
 
+        let project;
+
+
+        try {
+
+            project =
+                JSON.parse(data.response);
+
+        } catch (parseError) {
+
+            throw new Error(
+                "Ollama returned invalid JSON."
+            );
+        }
+
+
+        const expectedFiles = [
+
+            "provider.tf",
+
+            "variables.tf",
+
+            "main.tf",
+
+            "outputs.tf",
+
+            "terraform.tfvars.example",
+
+            "README.md"
+
+        ];
+
+
+        const missingFiles =
+            expectedFiles.filter(
+                file => !project[file]
+            );
+
+
+        if (missingFiles.length > 0) {
+
+            throw new Error(
+                "Missing files: " +
+                missingFiles.join(", ")
+            );
+        }
+
+
+        window.generatedTerraformProject =
+            project;
+
+
+        displayFiles(project);
+
+
+        status.innerHTML =
+            "<div class='success'>✓ Terraform project generated successfully.</div>";
+
+        downloadButton.style.display =
+            "inline-block";
+
+
+    } catch (error) {
+
         status.innerHTML = "";
 
+        filesContainer.innerHTML =
 
-        result.textContent =
-            data.response;
-
-
-    }
-
-    catch (error) {
-
-        status.innerHTML = "";
-
-        result.textContent =
-            "Error: "
-            + error.message;
+            `<div class="error">
+                ${escapeHtml(error.message)}
+             </div>`;
 
     }
-
 }
 
+
+function displayFiles(project) {
+
+    const container =
+        document.getElementById("files-container");
+
+
+    container.innerHTML = "";
+
+
+    Object.entries(project).forEach(
+        ([filename, content]) => {
+
+            const fileCard =
+                document.createElement("div");
+
+            fileCard.className =
+                "file-card";
+
+
+            fileCard.innerHTML = `
+
+                <div class="file-header">
+
+                    <span>📄 ${escapeHtml(filename)}</span>
+
+                    <button
+                        class="small-button"
+                        onclick="downloadFile(
+                            '${escapeHtml(filename)}'
+                        )">
+
+                        Download
+
+                    </button>
+
+                </div>
+
+                <pre><code>${escapeHtml(content)}</code></pre>
+
+            `;
+
+
+            container.appendChild(fileCard);
+
+        }
+    );
+}
+
+
+function downloadFile(filename) {
+
+    const project =
+        window.generatedTerraformProject;
+
+
+    const content =
+        project[filename];
+
+
+    const blob =
+        new Blob(
+            [content],
+            {
+                type: "text/plain"
+            }
+        );
+
+
+    const url =
+        URL.createObjectURL(blob);
+
+
+    const link =
+        document.createElement("a");
+
+
+    link.href = url;
+
+    link.download = filename;
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+}
+
+
+async function downloadZip() {
+
+    const project =
+        window.generatedTerraformProject;
+
+
+    if (!project) {
+
+        alert("Generate a project first.");
+
+        return;
+    }
+
+
+    const zip =
+        new JSZip();
+
+
+    Object.entries(project).forEach(
+        ([filename, content]) => {
+
+            zip.file(
+                filename,
+                content
+            );
+
+        }
+    );
+
+
+    const blob =
+        await zip.generateAsync(
+            {
+                type: "blob"
+            }
+        );
+
+
+    const url =
+        URL.createObjectURL(blob);
+
+
+    const link =
+        document.createElement("a");
+
+
+    link.href = url;
+
+    link.download =
+        "terraform-project.zip";
+
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+}
+
+
+function escapeHtml(value) {
+
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
