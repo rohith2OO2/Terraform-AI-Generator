@@ -1,0 +1,55 @@
+
+services:
+
+  terraform-ai-ui:
+
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: terraform-ai-ui
+
+    ports:
+      - "80:80"
+
+    depends_on:
+      - ollama
+
+    restart: unless-stopped
+
+    networks:
+      - terraform-ai-network
+
+
+  ollama:
+
+    image: ollama/ollama:latest
+
+    container_name: ollama
+
+    restart: unless-stopped
+
+    volumes:
+      - ollama_data:/root/.ollama
+
+    expose:
+      - "11434"
+
+    environment:
+      OLLAMA_HOST: "0.0.0.0:11434"
+
+    networks:
+      - terraform-ai-network
+
+
+volumes:
+
+  ollama_data:
+
+
+networks:
+
+  terraform-ai-network:
+
+    driver: bridge
+
